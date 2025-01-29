@@ -32,5 +32,6 @@ class TestHTMLNode(unittest.TestCase):
         self.assertNotEqual(node1f()(), node3f()())
         self.assertNotEqual(node3f()(), node2f()())
 
+
 if __name__ == "__main__":
     unittest.main()
