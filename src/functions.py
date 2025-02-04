@@ -76,34 +76,47 @@ def extract_markdown_links(text):
 
 def split_nodes_image(old_nodes):
     # helperfunctions for readability, not tested
-    def new_textnode(text):
+    def make_textnode(text):
         return TextNode(text, TextType.TEXT)
-    def new_image_node(description_link):
-        return TextType(description_link[0], TextType.IMAGE, description_link[1])
+    def make_image_node(description_link):
+        print(description_link[0], type(description_link[0]))
+        print(description_link[1], type(description_link[1]))
+        return TextNode(description_link[0], TextType.IMAGE, description_link[1])
 
     resulting_nodes = []
-    extracted_image_links = []
-    full_text = ""
-    new_text = []
-    for node in old_nodes:
+
+    for _, node in enumerate(old_nodes):
+        current_text = node.get_text()
         # Step 1, extract all the links in to link list from this node
-        current_links = extract_markdown_images(node.get_text())
-        # current_links, list of tuples 
+        all_links_of_node = extract_markdown_images(current_text)
+        # all_links_of_node, list of tuples 
         #           [(0,1), (0,1), ...]
-        #             [0]    [1]   ... 
-
-
+        #             [0]    [1]   ...
         # Step 2, loop over links and 
-        for description_link in extracted_image_links:
+        for _, description_link in enumerate(all_links_of_node):
+            image_alt = description_link[0]
+            image_link = description_link[1]
             # Step 3 - split TEXT at link, leave REST
-            # Step 4 - make textnode out of first entry
-            # Step 5 - include link/image_node
-            # Step 6 - append to resulting_nodes
+            textnode_rest_pair = current_text.split(f"![{image_alt}]({image_link})", 1)
+            # textnode_rest_pair, list of two strings
+            # ["text to textnode", "rest text to peruse for links"]
+            #  textnode_rest_pair[0] textnode_rest_pair[1] 
 
-            # Step 7- TEXT = REST
-            pass
+            # Step 4 - make textnode out of first entry
+            new_textnode = make_textnode(textnode_rest_pair[0])
+            # Step 5 - make link/image_node
+            new_image_node = make_image_node(description_link)
+            # Step 6 - append botg to resulting_nodes
+            resulting_nodes.append(new_textnode)
+            resulting_nodes.append(new_image_node)
+            # Step 7 - TEXT = REST, update current_text to rest
+            current_text = textnode_rest_pair[1]
         # ... Step 2
+            # Step 8, if rest (= current text) not empty, make textnode and append
+        if len(current_text) > 0:
+            resulting_nodes.append(TextNode(current_text, TextType.TEXT))
         
+
     return resulting_nodes
 
 
@@ -112,8 +125,90 @@ def split_nodes_image(old_nodes):
 
 def split_nodes_link(old_nodes):
     # helperfunctions for readility
-    def new_textnode(text): # not tested
+    def make_textnode(text): # not tested
         return TextNode(text, TextType.TEXT)
-    def new_link_node(description_link): # not tested
-        return TextType(description_link[0], TextType.LINK, description_link[1])
-    pass
+    def make_link_node(description_link): # not tested
+        return TextNode(description_link[0], TextType.LINK, description_link[1])
+    
+    resulting_nodes = []
+    for node in old_nodes:
+        current_text = node.get_text()
+        # Step 1, extract all the links in to link list from this node
+        all_links_of_node = extract_markdown_links(current_text)
+        # all_links_of_node, list of tuples 
+        #           [(0,1), (0,1), ...]
+        #             [0]    [1]   ...
+        # Step 2, loop over links and 
+        for description_link in all_links_of_node:
+            link_alt = description_link[0]
+            link_link = description_link[1]
+            # Step 3 - split TEXT at link, leave REST
+            textnode_rest_pair = current_text.split(f"[{link_alt}]({link_link})", 1)
+            # textnode_rest_pair, list of two strings
+            # ["text to textnode", "rest text to peruse for links"]
+            #  textnode_rest_pair[0] textnode_rest_pair[1]  
+                    
+            # Step 4 - make textnode out of first entry
+            new_textnode = make_textnode(textnode_rest_pair[0])
+            # Step 5 - make link/image_node
+            new_link_node = make_link_node(description_link)
+            # Step 6 - append botg to resulting_nodes
+            resulting_nodes.append(new_textnode)
+            resulting_nodes.append(new_link_node)
+            # Step 7 - TEXT = REST, update current_text to rest
+            current_text = textnode_rest_pair[1]
+        # ... Step 2
+        # Step 8, if rest (= current text) not empty, make textnode
+        if len(current_text) > 0:
+            resulting_nodes.append(TextNode(current_text, TextType.TEXT))
+        
+    return resulting_nodes
+
+
+def text_to_textnodes(text):
+    """
+    text:
+        markdown formated string
+    return:
+        list of textnodes, each with corresponding texttype, formatting, etc.
+
+    """
+    resulting_nodes = []
+    # make a node out of the initial text input
+    raw_node = TextNode(text, TextType.TEXT)
+    # split into nodes:
+    # BOLD, TEXT, ITALIC, TEXT, ITALIC, CODE etc...
+    links_images_not_extracted = split_nodes_delimiter(split_nodes_delimiter(split_nodes_delimiter([raw_node], "**", TextType.BOLD), "*", TextType.ITALIC), "`", TextType.CODE)
+    # NOW: TEXT nodes still possibly contain LINKS or IMAGE
+    for node in links_images_not_extracted:
+        # if the node is not TEXT we can just append it
+        print("I am a node of type: ", type(node))
+        if node.get_text_type() != TextType.TEXT:
+            resulting_nodes.append(node)
+        # otherwise it is TEXT and might contain LINK or IMAGE
+        else:
+            # Let us extract the links
+            image_not_extracted = split_nodes_link([node])
+            # now we have a list
+            # [TEXT, LINK, TEXT, LINK]
+            # list of textnodes, TextTypes: LINK, TEXT, LINK, TEXT
+            # apply split_nodes_image to remaining TextType.TEXT nodes
+            link_image_extracted = []
+            for current in image_not_extracted:
+                if current.get_text_type() == TextType.LINK:
+                    # if node is LINK, append
+                    link_image_extracted.append(current)
+                else:
+                    # node is TEXT and might contain IMAGE
+                    link_image_extracted.append(split_nodes_image([current]))
+                    # appends TEXT, IMAGE TEXT
+                    # or TEXT
+                    # or IMAGE, IMAGE etc
+            # if last node was ITALIC, resulting nodes looks like
+            # [..., ITALIC]
+            # now we append eg [TEXT, IMAGE, LINK, TEXT]
+            # [..., ITALIC, TEXT, IMAGE, LINK, TEXT]
+            resulting_nodes.append(link_image_extracted)
+            # and go to next node that will be either TEXT to repeat unpacking, or
+            # ITALIC, CODE, BOLD and will just be appended
+    return resulting_nodes
